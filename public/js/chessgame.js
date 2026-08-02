@@ -1,16 +1,51 @@
 const socket = io();
+
 const chess = new Chess();
 const boardElement = document.querySelector(".chessboard");
+const roleText = document.getElementById("roleText");
+const turnDot = document.getElementById("turnDot");
+const turnText = document.getElementById("turnText");
+const banner = document.getElementById("gameOverBanner");
 
 let draggedPiece = null;
 let sourceSquare = null;
 let playerRole = null;
+let gameEnded = false;
+
+const roleLabels = { w: "White", b: "Black" };
+
+const updateNameplate = () => {
+  roleText.innerText = playerRole ? roleLabels[playerRole] : "Spectator";
+
+  if (gameEnded) return; 
+
+  const turn = chess.turn();
+  const isMyTurn = playerRole === turn;
+
+  if (playerRole === null) {
+    turnDot.classList.add("waiting");
+    turnText.innerText = `${roleLabels[turn]} to move`;
+  } else if (isMyTurn) {
+    turnDot.classList.remove("waiting");
+    turnText.innerText = "Your move";
+  } else {
+    turnDot.classList.add("waiting");
+    turnText.innerText = `${roleLabels[turn]} to move`;
+  }
+};
 
 const renderBoard = () => {
   const board = chess.board();
   boardElement.innerHTML = "";
-  board.forEach((row, rowindex) => {
-    row.forEach((square, squareindex) => {
+
+  const flipped = playerRole === "b";
+
+  for (let displayRow = 0; displayRow < 8; displayRow++) {
+    for (let displayCol = 0; displayCol < 8; displayCol++) {
+      const rowindex = flipped ? 7 - displayRow : displayRow;
+      const squareindex = flipped ? 7 - displayCol : displayCol;
+      const square = board[rowindex][squareindex];
+
       const squareElement = document.createElement("div");
       squareElement.classList.add(
         "square",
@@ -27,44 +62,53 @@ const renderBoard = () => {
           square.color === "w" ? "white" : "black",
         );
         pieceElement.innerText = getPieceUnicode(square);
-        pieceElement.draggable = playerRole === square.color;
+        pieceElement.draggable =
+          !gameEnded &&
+          playerRole === square.color &&
+          chess.turn() === playerRole;
+        if (pieceElement.draggable) pieceElement.classList.add("draggable");
 
         pieceElement.addEventListener("dragstart", (e) => {
           if (pieceElement.draggable) {
             draggedPiece = pieceElement;
             sourceSquare = { row: rowindex, col: squareindex };
+            pieceElement.classList.add("dragging");
             e.dataTransfer.setData("text/plain", "");
           }
         });
-        pieceElement.addEventListener("dragend", (e) => {
+        pieceElement.addEventListener("dragend", () => {
+          pieceElement.classList.remove("dragging");
           draggedPiece = null;
           sourceSquare = null;
         });
 
         squareElement.appendChild(pieceElement);
       }
+
       squareElement.addEventListener("dragover", function (e) {
         e.preventDefault();
+        if (!gameEnded) squareElement.classList.add("drag-over");
+      });
+      squareElement.addEventListener("dragleave", function () {
+        squareElement.classList.remove("drag-over");
       });
       squareElement.addEventListener("drop", function (e) {
         e.preventDefault();
-        if (draggedPiece) {
-          const targetSource = {
+        squareElement.classList.remove("drag-over");
+        if (draggedPiece && !gameEnded) {
+          const targetSquare = {
             row: parseInt(squareElement.dataset.row),
             col: parseInt(squareElement.dataset.column),
           };
-          handleMove(sourceSquare, targetSource);
+          handleMove(sourceSquare, targetSquare);
         }
       });
-      boardElement.appendChild(squareElement);
-    });
-  });
 
-  if (playerRole === "b") {
-    boardElement.classList.add("flipped");
-  } else {
-    boardElement.classList.remove("flipped");
+      boardElement.appendChild(squareElement);
+    }
   }
+
+  updateNameplate();
 };
 
 const handleMove = (source, target) => {
@@ -104,9 +148,13 @@ socket.on("boardState", function (fen) {
   renderBoard();
 });
 
-socket.on("move", function (move) {
-  chess.move(move);
-  renderBoard();
+socket.on("gameOver", function (message) {
+  gameEnded = true;
+  turnDot.classList.add("waiting");
+  turnText.innerText = "Game over";
+  banner.innerText = message;
+  banner.classList.add("visible");
+  renderBoard(); 
 });
 
 renderBoard();

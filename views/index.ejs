@@ -3,24 +3,154 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title><%= title %></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      :root {
+        --bg: #1a1613;
+        --bg-raised: #221d19;
+        --board-light: #f0d9b5;
+        --board-dark: #b58863;
+        --brass: #c9a15f;
+        --brass-dim: #8a7248;
+        --ivory: #ece6d9;
+        --ivory-dim: #a89f8f;
+        --emerald: #2d5a4a;
+        --emerald-glow: #3f7a63;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(ellipse at top, #241f1a 0%, var(--bg) 60%);
+        font-family: "JetBrains Mono", monospace;
+        color: var(--ivory);
+        padding: 24px;
+      }
+
+      .table {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+      }
+
+      .title {
+        font-family: "Playfair Display", serif;
+        font-weight: 700;
+        font-size: 28px;
+        letter-spacing: 0.5px;
+        color: var(--ivory);
+        margin: 0;
+        text-align: center;
+      }
+
+      .title span {
+        color: var(--brass);
+        font-style: italic;
+        font-weight: 600;
+      }
+
+      .nameplate {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: linear-gradient(180deg, #2a231d 0%, #1f1a16 100%);
+        border: 1px solid var(--brass-dim);
+        border-radius: 3px;
+        padding: 10px 20px;
+        box-shadow:
+          0 1px 0 rgba(201, 161, 95, 0.15) inset,
+          0 4px 14px rgba(0, 0, 0, 0.4);
+        min-width: 320px;
+        justify-content: space-between;
+      }
+
+      .nameplate-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: var(--ivory-dim);
+      }
+
+      .nameplate-role {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        color: var(--brass);
+        text-transform: uppercase;
+      }
+
+      .turn-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--emerald-glow);
+        box-shadow: 0 0 8px var(--emerald-glow);
+        transition: background 0.3s, box-shadow 0.3s;
+      }
+
+      .turn-dot.waiting {
+        background: #5a5248;
+        box-shadow: none;
+      }
+
+      .turn-text {
+        font-size: 12px;
+        color: var(--ivory);
+        letter-spacing: 0.5px;
+      }
+
+      /* board */
+      .board-frame {
+        padding: 18px;
+        background: linear-gradient(155deg, #3a2e22 0%, #241c15 100%);
+        border-radius: 6px;
+        box-shadow:
+          0 1px 0 rgba(201, 161, 95, 0.2) inset,
+          0 20px 40px rgba(0, 0, 0, 0.55);
+      }
+
       .chessboard {
         display: grid;
         grid-template-columns: repeat(8, minmax(0, 1fr));
         grid-template-rows: repeat(8, minmax(0, 1fr));
         width: 400px;
         height: 400px;
+        border-radius: 2px;
+        overflow: hidden;
         transform: rotate(0deg);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+      }
+
+      @media (max-width: 460px) {
+        .chessboard {
+          width: 320px;
+          height: 320px;
+        }
       }
 
       .piece.white {
-        color: white;
+        color: #fdfaf3;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
       }
 
       .piece.black {
-        color: black;
+        color: #1a1613;
+        text-shadow: 0 1px 1px rgba(255, 255, 255, 0.15);
       }
 
       .flipped {
@@ -31,19 +161,30 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        position: relative;
       }
 
       .square.light {
-        background-color: #f0d9b5;
+        background-color: var(--board-light);
       }
 
       .square.dark {
-        background-color: #b58863;
+        background-color: var(--board-dark);
+      }
+
+      .square.drag-over {
+        box-shadow: inset 0 0 0 3px var(--brass);
       }
 
       .piece {
         font-size: 36px;
         cursor: pointer;
+        user-select: none;
+        transition: transform 0.12s ease;
+      }
+
+      .piece.draggable:hover {
+        transform: scale(1.08);
       }
 
       .piece.draggable {
@@ -51,19 +192,43 @@
       }
 
       .dragging {
-        opacity: 0.5;
+        opacity: 0.35;
       }
 
       .flipped .piece {
         transform: rotate(180deg);
       }
+
+      .footer-note {
+        font-size: 11px;
+        color: var(--ivory-dim);
+        letter-spacing: 0.5px;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
-    <div class="w-full h-screen flex items-center justify-center bg-zinc-900">
-      <div class="chessboard w-96 h-96 bg-red-400"></div>
+    <div class="table">
+      <h1 class="title">Real-Time <span>Chess</span></h1>
+
+      <div class="nameplate">
+        <div>
+          <div class="nameplate-label">Playing as</div>
+          <div class="nameplate-role" id="roleText">Spectator</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span class="turn-dot waiting" id="turnDot"></span>
+          <span class="turn-text" id="turnText">Waiting…</span>
+        </div>
+      </div>
+
+      <div class="board-frame">
+        <div class="chessboard"></div>
+      </div>
+
+      <p class="footer-note">Drag a piece to move</p>
     </div>
-    <div></div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"

@@ -3,12 +3,16 @@ const socket = require("socket.io");
 const http = require("http");
 const { Chess } = require("chess.js");
 const path = require("path");
-const { log, timeLog } = require("console");
 
 const app = express();
 const server = http.createServer(app);
 
-const io = socket(server);
+const io = socket(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
 
 const chess = new Chess();
 
@@ -22,6 +26,18 @@ app.get("/", (req, res) => {
   res.render("index", { title: "Chess game" });
 });
 
+function getGameOverMessage() {
+  if (chess.isCheckmate()) {
+    const winner = chess.turn() === "w" ? "Black" : "White";
+    return `Checkmate — ${winner} wins`;
+  }
+  if (chess.isStalemate()) return "Draw by stalemate";
+  if (chess.isThreefoldRepetition()) return "Draw by repetition";
+  if (chess.isInsufficientMaterial()) return "Draw — insufficient material";
+  if (chess.isDraw()) return "Draw";
+  return "Game over";
+}
+
 io.on("connection", function (uniquesocket) {
   console.log("connected");
 
@@ -29,10 +45,15 @@ io.on("connection", function (uniquesocket) {
     players.white = uniquesocket.id;
     uniquesocket.emit("playerRole", "w");
   } else if (!players.black) {
-    players.white = uniquesocket.id;
+    players.black = uniquesocket.id;
     uniquesocket.emit("playerRole", "b");
   } else {
     uniquesocket.emit("spectatorRole");
+  }
+
+  uniquesocket.emit("boardState", chess.fen());
+  if (chess.isGameOver()) {
+    uniquesocket.emit("gameOver", getGameOverMessage());
   }
 
   uniquesocket.on("disconnect", function () {
@@ -46,18 +67,21 @@ io.on("connection", function (uniquesocket) {
 
   uniquesocket.on("move", function (move) {
     try {
+      if (chess.isGameOver()) return;
+
       if (chess.turn() === "w" && uniquesocket.id !== players.white) return;
       if (chess.turn() === "b" && uniquesocket.id !== players.black) return;
-
-      console.log("Received move:", move);
 
       const result = chess.move(move);
 
       if (result) {
         currentPlayer = chess.turn();
 
-        io.emit("move", move);
         io.emit("boardState", chess.fen());
+
+        if (chess.isGameOver()) {
+          io.emit("gameOver", getGameOverMessage());
+        }
       } else {
         console.log("Invalid move:", move);
       }
